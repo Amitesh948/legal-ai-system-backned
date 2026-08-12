@@ -110,12 +110,12 @@ class Case(BaseModel):
     # --- Relationships ---
     client = relationship("Client", back_populates="cases")
     advocate = relationship("Advocate", back_populates="cases")
-    documents = relationship("CaseDocument", back_populates="case", lazy="selectin")
-    ai_summary = relationship("AISummary", back_populates="case", uselist=False, lazy="selectin")
-    legal_opinion = relationship("LegalOpinion", back_populates="case", uselist=False, lazy="selectin")
-    payments = relationship("Payment", back_populates="case", lazy="dynamic")
-    report = relationship("Report", back_populates="case", uselist=False, lazy="selectin")
-    status_history = relationship("CaseStatusHistory", back_populates="case", lazy="dynamic")
+    documents = relationship("CaseDocument", back_populates="case", lazy="selectin", cascade="all, delete-orphan")
+    ai_summary = relationship("AISummary", back_populates="case", uselist=False, lazy="selectin", cascade="all, delete-orphan")
+    legal_opinion = relationship("LegalOpinion", back_populates="case", uselist=False, lazy="selectin", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="case", lazy="dynamic", cascade="all, delete-orphan")
+    report = relationship("Report", back_populates="case", uselist=False, lazy="selectin", cascade="all, delete-orphan")
+    status_history = relationship("CaseStatusHistory", back_populates="case", lazy="dynamic", cascade="all, delete-orphan")
 
     messages = relationship("CaseMessage", back_populates="case", cascade="all, delete-orphan")
 

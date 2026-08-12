@@ -244,3 +244,111 @@ async def get_admin_payments(
         data=payments,
         message="Financial ledger retrieved successfully"
     )
+
+from pydantic import BaseModel
+from uuid import UUID
+
+class CaseStatusOverride(BaseModel):
+    status: CaseStatus
+
+@router.patch("/cases/{case_id}/status")
+async def override_case_status(
+    case_id: UUID,
+    data: CaseStatusOverride,
+    token_data: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Forcefully override a case's status.
+    """
+    if token_data.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can override case status"
+        )
+        
+    stmt = select(Case).where(Case.id == case_id)
+    result = await db.execute(stmt)
+    case = result.scalar_one_or_none()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Case not found"
+        )
+        
+    old_status = case.status
+    case.status = data.status
+    
+    # Log the action
+    audit_log = AuditLog(
+        user_id=UUID(token_data.get("sub")),
+        action="UPDATE_CASE",
+        resource_type="case",
+        resource_id=str(case.id),
+        old_values={"status": old_status.value},
+        new_values={"status": case.status.value},
+        ip_address="admin-override"
+    )
+    db.add(audit_log)
+    
+    await db.commit()
+    
+    return success_response(
+        data={"status": case.status.value},
+        message=f"Case status successfully overridden to {case.status.value}"
+    )
+
+@router.delete("/cases/{case_id}")
+async def delete_case(
+    case_id: UUID,
+    token_data: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Forcefully delete a case and archive it from the system.
+    """
+    if token_data.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can delete cases"
+        )
+        
+    stmt = select(Case).where(Case.id == case_id)
+    result = await db.execute(stmt)
+    case = result.scalar_one_or_none()
+    
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Case not found"
+        )
+        
+    # We must manually delete payments first because Payment -> Case is ondelete="RESTRICT"
+    # to protect financial ledgers, but Admin deletion forces cleanup.
+    await db.execute(Payment.__table__.delete().where(Payment.case_id == case_id))
+        
+    # We will log the deletion before actually deleting it
+    audit_log = AuditLog(
+        user_id=UUID(token_data.get("sub")),
+        action="DELETE_CASE",
+        resource_type="case",
+        resource_id=str(case.id),
+        old_values={"case_number": case.case_number, "status": case.status.value},
+        new_values=None,
+        ip_address="admin-delete"
+    )
+    db.add(audit_log)
+    
+    await db.delete(case)
+    
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    return success_response(
+        data={"deleted_id": str(case_id)},
+        message="Case permanently deleted"
+    )
