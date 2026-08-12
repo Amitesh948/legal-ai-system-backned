@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Legal Opinion Report</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2.5cm;
+            @bottom-center {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 10pt;
+                color: #7f8c8d;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            }
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #34495e;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .logo span {
+            color: #3498db;
+        }
+        .report-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #34495e;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .meta-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            font-size: 11pt;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+        .meta-column {
+            width: 48%;
+            display: inline-block;
+            vertical-align: top;
+        }
+        .meta-item {
+            margin-bottom: 8px;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #7f8c8d;
+            display: inline-block;
+            width: 120px;
+        }
+        .section {
+            margin-bottom: 35px;
+            page-break-inside: avoid;
+        }
+        .section-title {
+            font-size: 16pt;
+            color: #2980b9;
+            border-bottom: 1px solid #ecf0f1;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        .content-box {
+            background-color: #ffffff;
+            font-size: 11pt;
+            text-align: justify;
+        }
+        .risk-high { color: #e74c3c; font-weight: bold; }
+        .risk-medium { color: #f39c12; font-weight: bold; }
+        .risk-low { color: #27ae60; font-weight: bold; }
+        
+        .footer-signatures {
+            margin-top: 60px;
+            page-break-inside: avoid;
+        }
+        .signature-block {
+            width: 250px;
+            float: right;
+            text-align: center;
+        }
+        .signature-line {
+            border-top: 1px solid #2c3e50;
+            margin-top: 50px;
+            padding-top: 10px;
+        }
+        .advocate-name {
+            font-weight: bold;
+            font-size: 12pt;
+        }
+        .advocate-title {
+            font-size: 10pt;
+            color: #7f8c8d;
+        }
+        .disclaimer {
+            margin-top: 50px;
+            font-size: 9pt;
+            color: #95a5a6;
+            text-align: justify;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 15px;
+            clear: both;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 100px;
+            color: rgba(200, 200, 200, 0.2);
+            z-index: -1;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    
+    {% if watermark_text %}
+    <div class="watermark">{{ watermark_text }}</div>
+    {% endif %}
+
+    <div class="header">
+        <div class="logo">Legal<span>AI</span> Consult</div>
+        <div class="report-title">Formal Legal Opinion Report</div>
+    </div>
+
+    <div class="meta-info">
+        <div class="meta-column">
+            <div class="meta-item"><span class="meta-label">Case Ref:</span> {{ case_number }}</div>
+            <div class="meta-item"><span class="meta-label">Client Name:</span> {{ client_name }}</div>
+            <div class="meta-item"><span class="meta-label">Date Generated:</span> {{ date_generated }}</div>
+        </div>
+        <div class="meta-column">
+            <div class="meta-item"><span class="meta-label">Advocate:</span> {{ advocate_name }}</div>
+            <div class="meta-item"><span class="meta-label">Case Status:</span> {{ case_status }}</div>
+            <div class="meta-item"><span class="meta-label">Winning Prob.:</span> {{ winning_probability }}%</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">1. Case Overview & Facts</h2>
+        <div class="content-box">
+            <p><strong>Title:</strong> {{ case_title }}</p>
+            <p>{{ case_description }}</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">2. Advocate's Legal Opinion</h2>
+        <div class="content-box">
+            {{ legal_opinion | safe }}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">3. Risk Assessment</h2>
+        <div class="content-box">
+            {{ risk_assessment | safe }}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 class="section-title">4. Recommended Actions</h2>
+        <div class="content-box">
+            {{ recommended_actions | safe }}
+        </div>
+    </div>
+    
+    {% if ai_summary %}
+    <div class="section">
+        <h2 class="section-title">Appendix: Executive Case Summary (AI Assisted)</h2>
+        <div class="content-box">
+            {{ ai_summary | safe }}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="footer-signatures">
+        <div class="signature-block">
+            <div class="signature-line">
+                <div class="advocate-name">{{ advocate_name }}</div>
+                <div class="advocate-title">Senior Legal Counsel</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="disclaimer">
+        <strong>Disclaimer:</strong> This legal opinion is based solely on the facts and documents provided by the client as of the date of issuance. It is intended for the exclusive use of the named client and may not be relied upon by any third party. The opinions expressed herein are professional legal judgments and do not constitute a guarantee of any specific outcome in litigation or other legal proceedings.
+    </div>
+
+</body>
+</html>
