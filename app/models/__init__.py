@@ -25,6 +25,7 @@ from app.models.audit_log import AuditLog
 from app.models.case_status_history import CaseStatusHistory
 from app.models.otp import OTPVerification
 from app.models.case_message import CaseMessage
+from app.models.cms import WebsiteSettings, HeroSection, PracticeArea, FAQ, PageContent, Blog
 
 
 # All models listed for easy reference
@@ -52,4 +53,11 @@ __all__ = [
     "AuditLog",
     "CaseStatusHistory",
     "OTPVerification",
+    "CaseMessage",
+    "WebsiteSettings",
+    "HeroSection",
+    "PracticeArea",
+    "FAQ",
+    "PageContent",
+    "Blog",
 ]

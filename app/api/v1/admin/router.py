@@ -119,13 +119,13 @@ async def get_admin_stats(
         
     # 1. Total Clients
     clients_result = await db.execute(
-        select(func.count(User.id)).where(User.role == "client")
+        select(func.count(User.id)).where(User.role.has(name="client"))
     )
     total_clients = clients_result.scalar() or 0
     
     # 2. Total Advocates
     advocates_result = await db.execute(
-        select(func.count(User.id)).where(User.role == "advocate")
+        select(func.count(User.id)).where(User.role.has(name="advocate"))
     )
     total_advocates = advocates_result.scalar() or 0
     

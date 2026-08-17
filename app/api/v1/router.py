@@ -18,10 +18,15 @@ from app.api.v1.reports.router import router as reports_router
 from app.api.v1.dashboard.router import router as dashboard_router
 from app.api.v1.admin.router import router as admin_router
 
+from app.api.v1.public.router import router as public_router
+from app.api.v1.admin.cms import router as admin_cms_router
+
 # --- V1 API Router ---
 api_v1_router = APIRouter()
 
 # Register module routers
+api_v1_router.include_router(public_router, prefix="/public", tags=["Public CMS"])
+api_v1_router.include_router(admin_cms_router, prefix="/admin/cms", tags=["Admin CMS"])
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Case Management"])
 api_v1_router.include_router(citations_router, prefix="/citations", tags=["Citations"])
