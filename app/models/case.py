@@ -84,14 +84,14 @@ class Case(BaseModel):
         comment="Type of case (civil, criminal, family, corporate, etc.)",
     )
     status = Column(
-        Enum(CaseStatus, name="case_status_enum", create_constraint=True),
+        Enum(CaseStatus, name="case_status_enum", create_constraint=True, values_callable=lambda x: [e.value for e in x]),
         default=CaseStatus.NEW,
         nullable=False,
         index=True,
         comment="Current case status",
     )
     priority = Column(
-        Enum(CasePriority, name="case_priority_enum", create_constraint=True),
+        Enum(CasePriority, name="case_priority_enum", create_constraint=True, values_callable=lambda x: [e.value for e in x]),
         default=CasePriority.MEDIUM,
         nullable=False,
         comment="Case priority level",

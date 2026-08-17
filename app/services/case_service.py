@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models.case import Case
+from app.models.case import Case, CaseStatus
 from app.models.case_document import CaseDocument
 from app.models.client import Client
 from app.config import get_settings
@@ -40,7 +40,7 @@ class CaseService:
             description=data.description,
             priority=data.priority,
             client_id=client.id,
-            status="NEW"
+            status=CaseStatus.NEW
         )
         db.add(new_case)
         await db.commit()

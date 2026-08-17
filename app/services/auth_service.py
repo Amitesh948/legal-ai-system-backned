@@ -164,7 +164,8 @@ class AuthService:
         asyncio.create_task(
             email_service.send_welcome_email(
                 to_email=user.email,
-                name=user.first_name
+                name=user.first_name,
+                role=data.role
             )
         )
         

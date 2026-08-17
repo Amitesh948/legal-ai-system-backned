@@ -62,12 +62,25 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {str(e)}", exc_info=True)
 
-    async def send_welcome_email(self, to_email: str, name: str):
+    async def send_welcome_email(self, to_email: str, name: str, role: str = "client"):
         subject = "Welcome to Legal AI System!"
+
+        if role == "advocate":
+            role_message = (
+                "You are now registered as a <b>Legal Advocate</b> on our platform. "
+                "Once your profile is verified, you will start receiving case assignments, "
+                "review AI-generated legal summaries, and provide expert legal opinions to clients."
+            )
+        else:
+            role_message = (
+                "You can now create cases, upload documents, and get automated legal opinions "
+                "from our AI and expert advocates."
+            )
+
         html_content = f"""
         <h2>Welcome, {name}!</h2>
         <p>Thank you for registering with the Legal AI System.</p>
-        <p>You can now create cases, upload documents, and get automated legal opinions from our AI and expert advocates.</p>
+        <p>{role_message}</p>
         <br/>
         <p>Best regards,<br/>The Legal AI Team</p>
         """
