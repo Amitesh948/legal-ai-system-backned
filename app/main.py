@@ -44,6 +44,13 @@ def create_app() -> FastAPI:
     # --- Register API Routes ---
     app.include_router(api_v1_router, prefix="/api/v1")
 
+    # --- Serve Uploaded Files ---
+    import os
+    from fastapi.staticfiles import StaticFiles
+    
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
+
     # --- Health Check ---
     @app.get("/health", tags=["Health"])
     async def health_check():

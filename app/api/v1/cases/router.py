@@ -64,6 +64,68 @@ async def get_my_cases(
         
     return success_response(message="Cases retrieved", data=serialized_cases)
 
+@router.get("/admin/analytics", response_model=dict)
+async def get_admin_analytics(
+    db: AsyncSession = Depends(get_db),
+    token_data: dict = Depends(get_current_user_token)
+):
+    """Get analytics data for admin dashboard."""
+    role = token_data.get("role")
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    from sqlalchemy import select, func
+    from app.models.case import Case, CaseStatus
+    from app.models.payment import Payment, PaymentStatus
+    
+    # Revenue Overview (Last 6 Months logic could be added, but for MVP let's just get total by month or just total)
+    # Simple totals for MVP:
+    total_revenue_query = select(func.sum(Payment.amount)).where(Payment.status == PaymentStatus.SUCCESS)
+    rev_result = await db.execute(total_revenue_query)
+    total_revenue = rev_result.scalar() or 0
+    
+    # Case Status Breakdown
+    status_query = select(Case.status, func.count(Case.id)).group_by(Case.status)
+    status_result = await db.execute(status_query)
+    status_counts = {row[0].value if hasattr(row[0], 'value') else row[0]: row[1] for row in status_result.all()}
+    
+    # Top Rated Advocates
+    # Join Advocate User profile with Case client_rating
+    from app.models.user import User
+    from app.models.role import Role
+    advocates_query = (
+        select(
+            User.first_name, 
+            User.last_name, 
+            func.avg(Case.client_rating).label('avg_rating'),
+            func.count(Case.id).label('total_cases')
+        )
+        .join(Case, User.id == Case.advocate_id)
+        .where(Case.client_rating.isnot(None))
+        .group_by(User.id)
+        .order_by(func.avg(Case.client_rating).desc())
+        .limit(5)
+    )
+    adv_results = await db.execute(advocates_query)
+    top_advocates = [
+        {
+            "name": f"{r[0]} {r[1]}",
+            "rating": round(float(r[2]), 1),
+            "cases": r[3]
+        }
+        for r in adv_results.all()
+    ]
+    
+    data = {
+        "revenue": {
+            "total": total_revenue
+        },
+        "case_status": status_counts,
+        "top_advocates": top_advocates
+    }
+    
+    return success_response(message="Analytics retrieved", data=data)
+
 @router.get("/admin/all", response_model=dict)
 async def get_all_cases_admin(
     db: AsyncSession = Depends(get_db),
@@ -217,14 +279,21 @@ async def upload_case_document(
     """Upload a document for a specific case."""
     user_id = token_data.get("sub")
     doc = await case_service.upload_document(db, case_id, user_id, file)
+    from app.models.case import Case, CaseStatus
+    from sqlalchemy import select
     
-    # Trigger AI processing in the background!
-    background_tasks.add_task(
-        ai_service.process_document_background,
-        case_id=case_id,
-        document_id=str(doc.id),
-        file_path=doc.file_path
-    )
+    query = select(Case).where(Case.id == case_id)
+    result = await db.execute(query)
+    case = result.scalars().first()
+    
+    # Only trigger AI processing for the initial document upload
+    if case and case.status == CaseStatus.NEW:
+        background_tasks.add_task(
+            ai_service.process_document_background,
+            case_id=case_id,
+            document_id=str(doc.id),
+            file_path=doc.file_path
+        )
     
     return success_response(message="Document uploaded successfully", data={"document_id": str(doc.id)})
 
@@ -437,6 +506,46 @@ async def download_legal_report(
         media_type="application/pdf"
     )
 
+@router.post("/{case_id}/close", response_model=dict)
+async def close_case(
+    case_id: str,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    token_data: dict = Depends(get_current_user_token)
+):
+    """Close the case and save client rating and feedback."""
+    from app.models.case import Case, CaseStatus
+    from sqlalchemy import select
+    
+    user_id = token_data.get("sub")
+    role = token_data.get("role")
+    
+    if role != "client":
+        raise HTTPException(status_code=403, detail="Only the client can close the case and provide a rating")
+        
+    query = select(Case).where(Case.id == case_id)
+    result = await db.execute(query)
+    case = result.scalars().first()
+    
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    # We allow closing if report is generated or opinion is generated
+    if case.status not in [CaseStatus.REPORT_GENERATED, CaseStatus.OPINION_GENERATED, CaseStatus.COMPLETED]:
+        raise HTTPException(status_code=400, detail="Case cannot be closed yet.")
+        
+    rating = data.get("rating")
+    review = data.get("review")
+    
+    case.client_rating = rating
+    case.client_review = review
+    case.status = CaseStatus.COMPLETED
+    
+    await db.commit()
+    
+    return success_response(message="Case closed successfully. Thank you for your feedback!")
+
+
 @router.get("/{case_id}/messages", response_model=dict)
 async def get_case_messages(
     case_id: str,
@@ -446,9 +555,18 @@ async def get_case_messages(
     """Get all chat messages for a specific case."""
     from app.models.case_message import CaseMessage
     from app.models.user import User
+    from app.models.case import Case
     from app.models.role import Role
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
+    
+    # Check permissions
+    role = token_data.get("role")
+    user_id = token_data.get("sub")
+    
+    if role != "admin":
+        # Validate that the user is actually part of this case
+        await case_service.get_case_by_id(db, user_id, case_id, role)
 
     query = (
         select(CaseMessage)

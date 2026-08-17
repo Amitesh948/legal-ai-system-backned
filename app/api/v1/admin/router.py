@@ -12,7 +12,95 @@ from app.models.client import Client
 
 from app.models.audit_log import AuditLog
 
+from pydantic import BaseModel
+
+class BroadcastMessage(BaseModel):
+    message: str
+    type: str = "info"
+    title: str = "System Announcement"
+
 router = APIRouter(prefix="/admin", tags=["Admin Dashboard"])
+
+@router.post("/broadcast")
+async def send_global_broadcast(
+    payload: BroadcastMessage,
+    token_data: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db)
+):
+    if token_data.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can send broadcasts")
+        
+    from app.services.websocket_manager import manager
+    from app.models.notification import Notification
+    from app.models.user import User
+    
+    # 1. Broadcast via WebSocket for immediate popups
+    await manager.broadcast_to_case("global", {
+        "type": "global_broadcast",
+        "data": payload.model_dump()
+    })
+    
+    # 2. Persist in database so offline users see it when they login
+    from app.models.role import Role
+    # Fetch all non-admin users
+    users_query = select(User.id).join(User.role).where(Role.name.in_(["client", "advocate"]))
+    result = await db.execute(users_query)
+    user_ids = result.scalars().all()
+    
+    if user_ids:
+        # Create a notification object for each user
+        notifications = [
+            Notification(
+                user_id=uid,
+                type="system_broadcast",
+                title=payload.title,
+                message=payload.message,
+                channel="in_app",
+                is_read=False
+            )
+            for uid in user_ids
+        ]
+        db.add_all(notifications)
+        await db.commit()
+    
+    
+    return success_response(message="Broadcast sent and saved to notifications")
+
+class UserStatusUpdate(BaseModel):
+    is_active: bool
+
+@router.patch("/users/{user_id}/status")
+async def update_user_status(
+    user_id: str,
+    payload: UserStatusUpdate,
+    token_data: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Admin only: Suspend or Reactivate a user account."""
+    if token_data.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can manage users")
+        
+    from app.repositories.user_repository import user_repository
+    user = await user_repository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Prevent self-suspension
+    if str(user.id) == token_data.get("sub"):
+        raise HTTPException(status_code=400, detail="Cannot suspend your own account")
+        
+    await user_repository.update(db, db_obj=user, obj_in={"is_active": payload.is_active})
+    
+    # If suspended, force logout via websocket
+    if not payload.is_active:
+        from app.services.websocket_manager import manager
+        await manager.broadcast_to_case("global", {
+            "type": "force_logout",
+            "user_id": str(user.id)
+        })
+        
+    status_msg = "reactivated" if payload.is_active else "suspended"
+    return success_response(message=f"User account {status_msg} successfully")
 
 @router.get("/stats")
 async def get_admin_stats(
@@ -180,7 +268,8 @@ async def get_admin_clients(
                 "last_name": user.last_name,
                 "name": f"{user.first_name} {user.last_name}",
                 "case_count": c_count,
-                "joined_at": user.created_at.isoformat() if user.created_at else None
+                "joined_at": user.created_at.isoformat() if user.created_at else None,
+                "is_active": user.is_active
             })
             
     return success_response(

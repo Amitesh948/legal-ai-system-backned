@@ -7,6 +7,7 @@ Endpoints for Advocate onboarding and management.
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from typing import Optional
 import os
 
 from app.database.session import get_db
@@ -121,6 +122,57 @@ async def update_bar_council_details(
     return success_response(message="Bar council details updated successfully")
 
 
+@router.post("/onboarding/documents", response_model=dict)
+async def upload_verification_documents(
+    enrollment_certificate: Optional[UploadFile] = File(None),
+    pan_document: Optional[UploadFile] = File(None),
+    gov_id: Optional[UploadFile] = File(None),
+    degree_certificate: Optional[UploadFile] = File(None),
+    certificate_of_practice: Optional[UploadFile] = File(None),
+    db: AsyncSession = Depends(get_db),
+    token_data: dict = Depends(get_current_user_token)
+):
+    """Upload verification documents for advocate profile."""
+    from app.config import get_settings
+    from uuid import uuid4
+    import os
+    
+    settings = get_settings()
+    user_id = token_data.get("sub")
+    query = select(Advocate).where(Advocate.user_id == user_id)
+    result = await db.execute(query)
+    advocate = result.scalars().first()
+    
+    if not advocate:
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    
+    async def save_file(file: UploadFile, prefix: str) -> str:
+        if not file: return None
+        ext = os.path.splitext(file.filename)[1]
+        filename = f"{prefix}_{user_id}_{uuid4().hex[:8]}{ext}"
+        filepath = os.path.join(settings.upload_dir, filename)
+        content = await file.read()
+        with open(filepath, "wb") as f:
+            f.write(content)
+        return f"/uploads/{filename}"
+
+    if enrollment_certificate:
+        advocate.enrollment_certificate_path = await save_file(enrollment_certificate, "enrollment")
+    if pan_document:
+        advocate.pan_document_path = await save_file(pan_document, "pan")
+    if gov_id:
+        advocate.gov_id_path = await save_file(gov_id, "govid")
+    if degree_certificate:
+        advocate.degree_certificate_path = await save_file(degree_certificate, "degree")
+    if certificate_of_practice:
+        advocate.certificate_of_practice_path = await save_file(certificate_of_practice, "cop")
+        
+    await db.commit()
+    return success_response(message="Documents uploaded successfully")
+
+
 @router.post("/onboarding/submit", response_model=dict)
 async def submit_for_verification(
     db: AsyncSession = Depends(get_db),
@@ -161,6 +213,7 @@ async def get_all_advocate_profiles(
         profile['first_name'] = user.first_name
         profile['last_name'] = user.last_name
         profile['email'] = user.email
+        profile['is_active'] = user.is_active
         data.append(profile)
         
     return success_response(message="Advocate profiles retrieved", data=data)

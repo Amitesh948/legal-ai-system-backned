@@ -187,8 +187,11 @@ class AuthService:
         """
         # 1. Find user by email
         user = await user_repository.get_by_email(db, data.email)
-        if not user or not user.is_active:
+        if not user:
             raise UnauthorizedException(message="Invalid email or password")
+            
+        if not user.is_active:
+            raise UnauthorizedException(message="Account has been suspended. Please contact support.")
 
         # 2. Verify password
         if not verify_password(data.password, user.password_hash):

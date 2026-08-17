@@ -6,7 +6,7 @@ Core case management table with status tracking.
 
 import enum
 
-from sqlalchemy import Column, Date, Enum, ForeignKey, String, Text
+from sqlalchemy import Column, Date, Enum, ForeignKey, String, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -78,6 +78,8 @@ class Case(BaseModel):
         nullable=True,
         comment="Detailed case description from client",
     )
+    client_rating = Column(Integer, nullable=True, comment="Client rating (1-5)")
+    client_review = Column(Text, nullable=True, comment="Client feedback review")
     case_type = Column(
         String(100),
         nullable=True,
